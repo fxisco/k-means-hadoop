@@ -1,0 +1,1 @@
+hadoop jar target/kmeans-1.0-SNAPSHOT.jar it.unipi.hadoop.Kmeans data.txt 4 2 0.5 centroids.txt output
