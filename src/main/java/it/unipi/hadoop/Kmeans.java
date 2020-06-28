@@ -24,11 +24,9 @@ import java.util.List;
 
 public class Kmeans {
 
-  public static class KMeansMapper extends Mapper<Object, Text, Text, Text> {
-
+  public static class KMeansMapper extends Mapper<Object, Text, Centroid, Point> {
     private final List<Centroid> centers = new ArrayList<>();
-    private final static IntWritable one = new IntWritable(1);
-    private Text word = new Text();
+    private Point point = new Point();
 
     @Override
     protected void setup(Context context) throws IOException, InterruptedException {
@@ -45,31 +43,43 @@ public class Kmeans {
         }
 
         reader.close();
-        // logger.fatal("Centers: " + centers.toString());
     }
 
     @Override
     public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+      Configuration conf = context.getConfiguration();
+      final int DIMENSION = Integer.parseInt(conf.get("dimension"));
       StringTokenizer itr = new StringTokenizer(value.toString(), ",");
+      int counter = 0;
+      List<DoubleWritable> coordinates = new ArrayList<DoubleWritable>();
+
       while (itr.hasMoreTokens()) {
-        word.set(itr.nextToken());
-        context.write(new Text("key"), word);
+          if (counter == DIMENSION)
+            break;
+
+          double currentValue = Double.parseDouble(itr.nextToken());
+
+          coordinates.add(new DoubleWritable(currentValue));
+          counter++;
       }
+
+      point.setCoordinates(coordinates);
+      context.write(centers.get(0), point);
     }
   }
 
-  public static class KMeansReducer extends Reducer<Text, Text, NullWritable, Text> {
+  public static class KMeansReducer extends Reducer<Centroid, Point, NullWritable, Text> {
     private Text result = new Text("");
 
     @Override
-    public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+    public void reduce(Centroid centroid, Iterable<Point> values, Context context) throws IOException, InterruptedException {
       String results = "";
 
-      for (Text val : values) {
-        results = results + " " + val.toString();
-      }
+      // for (Text val : values) {
+      //   results = results + " " + val.toString();
+      // }
 
-      result.set(results);
+      // result.set(results);
       context.write(null, result);
     }
   }
@@ -90,7 +100,7 @@ public class Kmeans {
     System.out.println("args[4]: <centroidsFilename>=" + otherArgs[4]);
     System.out.println("args[5]: <output>=" + otherArgs[5]);
 
-    createcentroids(Integer.parseInt(otherArgs[1]), conf, new Path(otherArgs[4]));
+    // createcentroids(Integer.parseInt(otherArgs[1]), conf, new Path(otherArgs[4]));
 
     Job job = Job.getInstance(conf, "kmean");
     job.getConfiguration().set("k", otherArgs[1]);
@@ -103,15 +113,17 @@ public class Kmeans {
 
     job.setJarByClass(Kmeans.class);
     job.setMapperClass(KMeansMapper.class);
-    // job.setCombinerClass(IntSumReducer.class);
     job.setReducerClass(KMeansReducer.class);
-    job.setOutputKeyClass(Text.class);
-    job.setOutputValueClass(Text.class);
+
+    job.setMapOutputKeyClass(Centroid.class);
+    job.setMapOutputValueClass(Point.class);
+    // job.setOutputKeyClass(Text.class);
+    // job.setOutputValueClass(Text.class);
 
     FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
-    FileOutputFormat.setOutputPath(job, new Path(otherArgs[4]));
+    FileOutputFormat.setOutputPath(job, new Path(otherArgs[5]));
 
-    // System.exit(job.waitForCompletion(true) ? 0 : 1);
+    System.exit(job.waitForCompletion(true) ? 0 : 1);
   }
 
   private static void createcentroids(int k, Configuration conf, Path centroids) throws IOException {

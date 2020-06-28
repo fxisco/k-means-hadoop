@@ -7,43 +7,43 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.io.DoubleWritable;
-import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.io.WritableComparable;
 
-public class Point implements Writable {
+public class Point implements WritableComparable<Centroid> {
   private List<DoubleWritable> coordinates;
 
   Point() {
-    coordinates = new ArrayList<DoubleWritable>();
+    this.coordinates = new ArrayList<DoubleWritable>();
   }
 
-  Point(int n) {
-    coordinates = new ArrayList<DoubleWritable>();
+  Point(final int n) {
+    this.coordinates = new ArrayList<DoubleWritable>();
 
     for (int i = 0; i < n; i++) {
-      coordinates.add(new DoubleWritable(0.0));
+      this.coordinates.add(new DoubleWritable(0.0));
     }
   }
 
-  Point(List<DoubleWritable> coordinatesList) {
+  Point(final List<DoubleWritable> coordinatesList) {
     this.coordinates = new ArrayList<DoubleWritable>();
 
-    for (DoubleWritable p : coordinatesList) {
+    for (final DoubleWritable p : coordinatesList) {
         this.coordinates.add(p);
     }
   }
 
   @Override
-  public void write(DataOutput out) throws IOException {
+  public void write(final DataOutput out) throws IOException {
     out.writeInt(coordinates.size());
 
-    for (DoubleWritable p : coordinates) {
+    for (final DoubleWritable p : coordinates) {
         out.writeDouble(p.get());
     }
   }
 
   @Override
-  public void readFields(DataInput in) throws IOException {
-    int size = in.readInt();
+  public void readFields(final DataInput in) throws IOException {
+    final int size = in.readInt();
     coordinates = new ArrayList<DoubleWritable>();
 
     for (int i = 0; i < size; i++) {
@@ -55,14 +55,23 @@ public class Point implements Writable {
   public String toString() {
     String elements = "";
 
-    for (DoubleWritable element : coordinates) {
+    for (final DoubleWritable element : coordinates) {
         elements += element.get() + ";";
     }
 
     return elements;
   }
 
+  void setCoordinates(final List<DoubleWritable> newCoordinates) {
+    this.coordinates = newCoordinates;
+  }
+
   List<DoubleWritable> getCoordinates() {
     return coordinates;
+  }
+
+  @Override
+  public int compareTo(Centroid o) {
+    return 0;
   }
 }

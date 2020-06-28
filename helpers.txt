@@ -1,1 +1,10 @@
 hadoop jar target/kmeans-1.0-SNAPSHOT.jar it.unipi.hadoop.Kmeans data.txt 4 2 0.5 centroids.txt output
+
+
+To see the logs
+
+cat /opt/yarn/logs/application_1590142925554_0010/container_1590142925554_0010_01_000001/stdout
+
+
+- el archivo de los centros es el mismo del output?
+
