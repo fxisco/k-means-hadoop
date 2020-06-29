@@ -56,4 +56,27 @@ public class Centroid extends Point {
 
     return 1;
   }
+
+  public void add(Point point) {
+    int lenght = point.getCoordinates().size();
+    List<DoubleWritable> pointCoordinates = point.getCoordinates();
+
+    for (int i = 0; i < lenght; i++) {
+      DoubleWritable newValue = new DoubleWritable(this.getCoordinates().get(i).get() + pointCoordinates.get(i).get());
+
+      this.getCoordinates().set(i, newValue);
+    }
+  }
+
+  public Double findEuclideanDistance(Point point) {
+    int lenght = point.getCoordinates().size();
+    List<DoubleWritable> pointCoordinates = point.getCoordinates();
+    Double sum = 0.0;
+
+    for (int i = 0; i < lenght; i++) {
+        sum += Math.pow(this.getCoordinates().get(i).get() - pointCoordinates.get(i).get(), 2);
+    }
+
+    return Math.sqrt(sum);
+  }
 }

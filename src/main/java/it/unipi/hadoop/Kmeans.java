@@ -8,7 +8,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -25,21 +24,21 @@ import java.util.List;
 public class Kmeans {
 
   public static class KMeansMapper extends Mapper<Object, Text, Centroid, Point> {
-    private final List<Centroid> centers = new ArrayList<>();
-    private Point point = new Point();
+    private final List<Centroid> centroids = new ArrayList<>();
+    private final Point point = new Point();
 
     @Override
     protected void setup(Context context) throws IOException, InterruptedException {
         Configuration conf = context.getConfiguration();
-        Path centersPath = new Path(conf.get("centroidsFilename"));
-        SequenceFile.Reader reader = new SequenceFile.Reader(conf, SequenceFile.Reader.file(centersPath));
+        Path centroidsPath = new Path(conf.get("centroidsFilename"));
+        SequenceFile.Reader reader = new SequenceFile.Reader(conf, SequenceFile.Reader.file(centroidsPath));
         IntWritable key = new IntWritable();
         Centroid value = new Centroid();
 
         while (reader.next(key, value)) {
           Centroid c = new Centroid(key, value.getCoordinates());
 
-          centers.add(c);
+          centroids.add(c);
         }
 
         reader.close();
@@ -64,23 +63,56 @@ public class Kmeans {
       }
 
       point.setCoordinates(coordinates);
-      context.write(centers.get(0), point);
+
+      Centroid closestCentroid = null;
+      Double minDistance = Double.MAX_VALUE;
+      Double distance;
+
+      for (Centroid currentCentroid : centroids) {
+          distance = currentCentroid.findEuclideanDistance(point);
+
+          if (minDistance > distance) {
+              closestCentroid = currentCentroid;
+              minDistance = distance;
+          }
+      }
+
+      context.write(closestCentroid, point);
     }
   }
 
-  public static class KMeansReducer extends Reducer<Centroid, Point, NullWritable, Text> {
-    private Text result = new Text("");
+  public static class KMeansReducer extends Reducer<Centroid, Point, Text, Text> {
+    public static enum Counter {
+      CONVERGED
+    }
+    private Text key = new Text("");
+    private Text value = new Text("");
+    private static int DIMENSION;
+
+    @Override
+    protected void setup(Context context) throws IOException, InterruptedException {
+      Configuration conf = context.getConfiguration();
+
+      DIMENSION = Integer.parseInt(conf.get("dimension"));
+    }
 
     @Override
     public void reduce(Centroid centroid, Iterable<Point> values, Context context) throws IOException, InterruptedException {
       String results = "";
 
-      // for (Text val : values) {
-      //   results = results + " " + val.toString();
-      // }
+      Centroid auxiliarCenter = new Centroid(DIMENSION);
 
-      // result.set(results);
-      context.write(null, result);
+      for (Point point : values) {
+        auxiliarCenter.add(point);
+
+        key.set(centroid.toString());
+        value.set(auxiliarCenter.toString());
+
+        context.write(key, value);
+      }
+
+
+      System.out.println("CENTER::" + centroid);
     }
   }
 
@@ -117,8 +149,8 @@ public class Kmeans {
 
     job.setMapOutputKeyClass(Centroid.class);
     job.setMapOutputValueClass(Point.class);
-    // job.setOutputKeyClass(Text.class);
-    // job.setOutputValueClass(Text.class);
+    job.setOutputKeyClass(Text.class);
+    job.setOutputValueClass(Text.class);
 
     FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
     FileOutputFormat.setOutputPath(job, new Path(otherArgs[5]));
