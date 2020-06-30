@@ -5,6 +5,7 @@ import java.util.StringTokenizer;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
@@ -24,7 +25,7 @@ import java.util.List;
 public class Kmeans {
 
   public static class KMeansMapper extends Mapper<Object, Text, Centroid, Point> {
-    private final List<Centroid> centroids = new ArrayList<>();
+    private List<Centroid> centroids = new ArrayList<>();
     private final Point point = new Point();
 
     @Override
@@ -38,6 +39,7 @@ public class Kmeans {
         while (reader.next(key, value)) {
           Centroid c = new Centroid(key, value.getCoordinates());
 
+          c.setId(key);
           centroids.add(c);
         }
 
@@ -77,6 +79,9 @@ public class Kmeans {
           }
       }
 
+
+      System.out.println("CENTROIDS: " + closestCentroid.toString() + ", POINT: " + point.toString());
+
       context.write(closestCentroid, point);
     }
   }
@@ -85,9 +90,12 @@ public class Kmeans {
     public static enum Counter {
       CONVERGED
     }
-    private Text key = new Text("");
-    private Text value = new Text("");
-    private static int DIMENSION;
+
+    Text key = new Text("");
+    Text value = new Text("");
+    static int DIMENSION;
+    List<Centroid> centroidsList = new ArrayList<>();
+
 
     @Override
     protected void setup(Context context) throws IOException, InterruptedException {
@@ -98,21 +106,56 @@ public class Kmeans {
 
     @Override
     public void reduce(Centroid centroid, Iterable<Point> values, Context context) throws IOException, InterruptedException {
-      String results = "";
+      Centroid auxiliarCentroid = new Centroid(DIMENSION);
 
-      Centroid auxiliarCenter = new Centroid(DIMENSION);
+      int numElements = 0;
 
       for (Point point : values) {
-        auxiliarCenter.add(point);
+        auxiliarCentroid.add(point);
 
         key.set(centroid.toString());
-        value.set(auxiliarCenter.toString());
+        value.set(point.toString());
+        numElements++;
 
         context.write(key, value);
       }
 
+      auxiliarCentroid.setId(centroid.getId());
+      auxiliarCentroid.mean(numElements);
 
-      System.out.println("CENTER::" + centroid);
+      Centroid copy = auxiliarCentroid.copy(auxiliarCentroid);
+
+      centroidsList.add(copy);
+
+      // Copiar el archivo de los centros
+      // Sobreescribir el archivo de los centros
+      // Incrementar convergencia
+      // Poner el foor loop para que corra el programa
+
+    }
+
+    @Override
+    protected void cleanup(Context context) throws IOException, InterruptedException {
+      super.cleanup(context);
+      Configuration conf = context.getConfiguration();
+      Path outPath = new Path(conf.get("centroidsFilename"));
+      FileSystem fs = FileSystem.get(conf);
+
+      fs.delete(outPath, true);
+
+      SequenceFile.Writer writer = SequenceFile.createWriter(conf,
+                SequenceFile.Writer.file(outPath),
+                SequenceFile.Writer.keyClass(IntWritable.class),
+                SequenceFile.Writer.valueClass(Centroid.class));
+
+      int i = 0;
+
+      for (Centroid centroid : centroidsList) {
+        writer.append(new IntWritable(i), centroid);
+        i++;
+      }
+
+      writer.close();
     }
   }
 
@@ -132,7 +175,8 @@ public class Kmeans {
     System.out.println("args[4]: <centroidsFilename>=" + otherArgs[4]);
     System.out.println("args[5]: <output>=" + otherArgs[5]);
 
-    // createcentroids(Integer.parseInt(otherArgs[1]), conf, new Path(otherArgs[4]));
+    // createCentroids(conf, new Path(otherArgs[4]));
+    // readCentroids(conf, new Path(otherArgs[4]));
 
     Job job = Job.getInstance(conf, "kmean");
     job.getConfiguration().set("k", otherArgs[1]);
@@ -158,7 +202,7 @@ public class Kmeans {
     System.exit(job.waitForCompletion(true) ? 0 : 1);
   }
 
-  private static void createcentroids(int k, Configuration conf, Path centroids) throws IOException {
+  private static void createCentroids(Configuration conf, Path centroids) throws IOException {
     SequenceFile.Writer centroidWriter = SequenceFile.createWriter(conf,
             SequenceFile.Writer.file(centroids),
             SequenceFile.Writer.keyClass(IntWritable.class),
@@ -174,7 +218,7 @@ public class Kmeans {
     };
 
     for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
+        for (int j = 0; j < 2; j++) {
           listParameters.add(new DoubleWritable(arrays[i][j]));
         }
 
@@ -184,5 +228,18 @@ public class Kmeans {
     }
 
     centroidWriter.close();
+  }
+
+  private static void readCentroids(Configuration conf, Path centroids) throws IOException {
+    SequenceFile.Reader reader = new SequenceFile.Reader(conf, SequenceFile.Reader.file(centroids));
+        IntWritable key = new IntWritable();
+        Centroid value = new Centroid();
+
+        while (reader.next(key, value)) {
+          // Centroid c = new Centroid(key, value.getCoordinates());
+          System.out.println(value);
+        }
+
+        reader.close();
   }
 }

@@ -28,15 +28,15 @@ public class Point implements WritableComparable<Centroid> {
     this.coordinates = new ArrayList<DoubleWritable>();
 
     for (final DoubleWritable p : coordinatesList) {
-        this.coordinates.add(p);
+        this.coordinates.add(new DoubleWritable(p.get()));
     }
   }
 
   @Override
   public void write(final DataOutput out) throws IOException {
-    out.writeInt(coordinates.size());
+    out.writeInt(this.coordinates.size());
 
-    for (final DoubleWritable p : coordinates) {
+    for (final DoubleWritable p : this.coordinates) {
         out.writeDouble(p.get());
     }
   }
@@ -44,10 +44,10 @@ public class Point implements WritableComparable<Centroid> {
   @Override
   public void readFields(final DataInput in) throws IOException {
     final int size = in.readInt();
-    coordinates = new ArrayList<DoubleWritable>();
+    this.coordinates = new ArrayList<DoubleWritable>();
 
     for (int i = 0; i < size; i++) {
-        coordinates.add(new DoubleWritable(in.readDouble()));
+        this.coordinates.add(new DoubleWritable(in.readDouble()));
     }
   }
 
@@ -55,7 +55,7 @@ public class Point implements WritableComparable<Centroid> {
   public String toString() {
     String elements = "";
 
-    for (final DoubleWritable element : coordinates) {
+    for (final DoubleWritable element : this.coordinates) {
         elements += element.get() + ";";
     }
 
@@ -63,11 +63,15 @@ public class Point implements WritableComparable<Centroid> {
   }
 
   void setCoordinates(final List<DoubleWritable> newCoordinates) {
-    this.coordinates = newCoordinates;
+    this.coordinates = new ArrayList<DoubleWritable>();
+
+    for (final DoubleWritable p : newCoordinates) {
+        this.coordinates.add(new DoubleWritable(p.get()));
+    }
   }
 
   List<DoubleWritable> getCoordinates() {
-    return coordinates;
+    return this.coordinates;
   }
 
   @Override

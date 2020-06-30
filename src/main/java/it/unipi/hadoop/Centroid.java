@@ -22,11 +22,15 @@ public class Centroid extends Point {
   Centroid(IntWritable id, List<DoubleWritable> coordinates) {
     super(coordinates);
 
-    this.id = id;
+    this.id = new IntWritable(id.get());
   }
 
   public IntWritable getId() {
     return this.id;
+  }
+
+  public void setId(IntWritable value) {
+    this.id = new IntWritable(value.get());
   }
 
   @Override
@@ -45,16 +49,12 @@ public class Centroid extends Point {
 
   @Override
   public String toString() {
-    return this.id + ";" + super.toString();
+    return this.getId().get() + ";" + super.toString();
   }
 
   @Override
   public int compareTo(Centroid o) {
-    if (this.getId().get() == o.getId().get()) {
-      return 0;
-    }
-
-    return 1;
+    return Integer.compare(this.getId().get(), o.getId().get());
   }
 
   public void add(Point point) {
@@ -68,15 +68,31 @@ public class Centroid extends Point {
     }
   }
 
+  public void mean(int n) {
+    int lenght = this.getCoordinates().size();
+
+    for (int i = 0; i < lenght; i++) {
+      DoubleWritable newValue = new DoubleWritable(this.getCoordinates().get(i).get() / n);
+
+      this.getCoordinates().set(i, newValue);
+    }
+  }
+
   public Double findEuclideanDistance(Point point) {
     int lenght = point.getCoordinates().size();
     List<DoubleWritable> pointCoordinates = point.getCoordinates();
     Double sum = 0.0;
 
     for (int i = 0; i < lenght; i++) {
-        sum += Math.pow(this.getCoordinates().get(i).get() - pointCoordinates.get(i).get(), 2);
+        DoubleWritable difference = new DoubleWritable(this.getCoordinates().get(i).get() - pointCoordinates.get(i).get());
+
+        sum += Math.pow(difference.get(), 2);
     }
 
     return Math.sqrt(sum);
+  }
+
+  public static Centroid copy(final Centroid old) {
+    return new Centroid(old.getId(), old.getCoordinates());
   }
 }
