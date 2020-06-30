@@ -92,6 +92,12 @@ public class Centroid extends Point {
     return Math.sqrt(sum);
   }
 
+  public boolean isConverging(Centroid centroidB, Double threshold) {
+    Double distance = this.findEuclideanDistance(centroidB);
+
+    return distance < threshold;
+  }
+
   public static Centroid copy(final Centroid old) {
     return new Centroid(old.getId(), old.getCoordinates());
   }

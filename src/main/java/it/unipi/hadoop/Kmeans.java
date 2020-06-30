@@ -25,7 +25,7 @@ import java.util.List;
 public class Kmeans {
 
   public static class KMeansMapper extends Mapper<Object, Text, Centroid, Point> {
-    private List<Centroid> centroids = new ArrayList<>();
+    private final List<Centroid> centroids = new ArrayList<>();
     private final Point point = new Point();
 
     @Override
@@ -79,9 +79,6 @@ public class Kmeans {
           }
       }
 
-
-      System.out.println("CENTROIDS: " + closestCentroid.toString() + ", POINT: " + point.toString());
-
       context.write(closestCentroid, point);
     }
   }
@@ -94,6 +91,7 @@ public class Kmeans {
     Text key = new Text("");
     Text value = new Text("");
     static int DIMENSION;
+    static Double THRESHOLD;
     List<Centroid> centroidsList = new ArrayList<>();
 
 
@@ -102,6 +100,7 @@ public class Kmeans {
       Configuration conf = context.getConfiguration();
 
       DIMENSION = Integer.parseInt(conf.get("dimension"));
+      THRESHOLD = Double.parseDouble(conf.get("threshold"));
     }
 
     @Override
@@ -123,13 +122,14 @@ public class Kmeans {
       auxiliarCentroid.setId(centroid.getId());
       auxiliarCentroid.mean(numElements);
 
-      Centroid copy = auxiliarCentroid.copy(auxiliarCentroid);
+      Centroid copy = Centroid.copy(auxiliarCentroid);
 
       centroidsList.add(copy);
 
-      // Copiar el archivo de los centros
-      // Sobreescribir el archivo de los centros
-      // Incrementar convergencia
+      if (centroid.isConverging(auxiliarCentroid, THRESHOLD)) {
+        context.getCounter(Counter.CONVERGED).increment(1);
+      }
+
       // Poner el foor loop para que corra el programa
 
     }
@@ -178,28 +178,52 @@ public class Kmeans {
     // createCentroids(conf, new Path(otherArgs[4]));
     // readCentroids(conf, new Path(otherArgs[4]));
 
-    Job job = Job.getInstance(conf, "kmean");
-    job.getConfiguration().set("k", otherArgs[1]);
-    job.getConfiguration().set("dimension", otherArgs[2]);
-    job.getConfiguration().set("threshold", otherArgs[3]);
-    job.getConfiguration().set("centroidsFilename", otherArgs[4]);
+    Job kmeansJob;
+    Path output = new Path(otherArgs[5]);
+    FileSystem fs = FileSystem.get(output.toUri(),conf);
 
-    job.setInputFormatClass(TextInputFormat.class);
-    job.setOutputFormatClass(TextOutputFormat.class);
 
-    job.setJarByClass(Kmeans.class);
-    job.setMapperClass(KMeansMapper.class);
-    job.setReducerClass(KMeansReducer.class);
 
-    job.setMapOutputKeyClass(Centroid.class);
-    job.setMapOutputValueClass(Point.class);
-    job.setOutputKeyClass(Text.class);
-    job.setOutputValueClass(Text.class);
+    long convergedCentroids = 0;
+    int k = Integer.parseInt(args[2]);
+    int iterations = 0;
 
-    FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
-    FileOutputFormat.setOutputPath(job, new Path(otherArgs[5]));
+    while (convergedCentroids < k) {
+      if (fs.exists(output)) {
+        System.out.println("Delete old output folder: " + output.toString());
+        fs.delete(output, true);
+      }
 
-    System.exit(job.waitForCompletion(true) ? 0 : 1);
+      kmeansJob = Job.getInstance(conf, "kmean");
+
+      kmeansJob.getConfiguration().set("k", otherArgs[1]);
+      kmeansJob.getConfiguration().set("dimension", otherArgs[2]);
+      kmeansJob.getConfiguration().set("threshold", otherArgs[3]);
+      kmeansJob.getConfiguration().set("centroidsFilename", otherArgs[4]);
+
+      kmeansJob.setJarByClass(Kmeans.class);
+      kmeansJob.setMapperClass(KMeansMapper.class);
+      kmeansJob.setReducerClass(KMeansReducer.class);
+      kmeansJob.setMapOutputKeyClass(Centroid.class);
+      kmeansJob.setMapOutputValueClass(Point.class);
+      kmeansJob.setOutputKeyClass(Text.class);
+      kmeansJob.setOutputValueClass(Text.class);
+
+      FileInputFormat.addInputPath(kmeansJob, new Path(otherArgs[0]));
+      FileOutputFormat.setOutputPath(kmeansJob, new Path(otherArgs[5]));
+
+      kmeansJob.setInputFormatClass(TextInputFormat.class);
+      kmeansJob.setOutputFormatClass(TextOutputFormat.class);
+
+      kmeansJob.waitForCompletion(true);
+
+      convergedCentroids = kmeansJob.getCounters().findCounter(KMeansReducer.Counter.CONVERGED).getValue();
+
+      iterations++;
+    }
+
+    System.out.println("Number of iterations\t" + iterations);
+    readCentroids(conf, new Path(otherArgs[4]));
   }
 
   private static void createCentroids(Configuration conf, Path centroids) throws IOException {
